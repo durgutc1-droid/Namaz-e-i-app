@@ -182,7 +182,7 @@
 
         async function playAdhan() {
             await unlockAudioContext();
-            const adhanFile = 'https://www.islamcan.com/audio/adhan/azan6.mp3';
+            const adhanFile = const adhanFile = 'audio/mein-ezan.mp3';
             if (synth.speaking) synth.cancel();
             if (state.currentPrayer) stopPrayer();
             if (adhanFile) {

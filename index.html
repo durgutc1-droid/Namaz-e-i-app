@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gebetshilfe</title>
+    <meta name="theme-color" content="#0d9488"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .arabic-text { font-family: 'Amiri', serif; font-size: 2.5rem; line-height: 1.7; direction: rtl; }
+        @media (max-width: 640px) { .arabic-text { font-size: 2rem; } }
+        .prayer-button:active, .control-button:active { transform: scale(0.97); }
+        .icon-container svg { width: 80px; height: 80px; color: #14b8a6; }
+        .modal, .loader-overlay { transition: opacity 0.25s ease; }
+        .modal-content { transition: transform 0.25s ease; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900">
+    <!-- Versteckter Audio-Player -->
+    <audio id="prayer-audio-player"></audio>
+
+    <div id="app" class="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 md:p-8">
+        <!-- Hauptmenü -->
+        <div id="main-menu" class="w-full max-w-md text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-teal-800 mb-2">Otomatik Namaz Yardımcısı</h1>
+            <p class="text-lg text-gray-600 mb-8">Lütfen bir namaz seçin veya Ezan dinleyin</p>
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="playAdhan()" class="prayer-button transition-transform duration-100 bg-emerald-600 text-white text-xl sm:text-2xl font-bold py-6 sm:py-8 rounded-xl shadow-lg">Ezan Dinle</button>
+                <button id="stop-adhan-button" onclick="stopAdhan()" class="hidden prayer-button transition-transform duration-100 bg-red-600 text-white text-xl sm:text-2xl font-bold py-6 sm:py-8 rounded-xl shadow-lg">Ezanı Durdur</button>
+                <hr class="my-4 border-gray-300">
+                <button onclick="startPrayer('sabah')" class="prayer-button transition-transform duration-100 bg-teal-500 text-white text-xl sm:text-2xl font-bold py-6 sm:py-8 rounded-xl shadow-lg">Sabah Namazı</button>
+                <button onclick="startPrayer('oeglen')" class="prayer-button transition-transform duration-100 bg-teal-600 text-white text-xl sm:text-2xl font-bold py-6 sm:py-8 rounded-xl shadow-lg">Öğle Namazı</button>
+                <button onclick="startPrayer('ikindi')" class="prayer-button transition-transform duration-100 bg-cyan-600 text-white text-xl sm:text-2xl font-bold py-6 sm:py-8 rounded-xl shadow-lg">İkindi Namazı</button>
+                <button onclick="startPrayer('aksam')" class="prayer-button transition-transform duration-100 bg-blue-700 text-white text-xl sm:text-2xl font-bold py-6 sm:py-8 rounded-xl shadow-lg">Akşam Namazı</button>
+                <button onclick="startPrayer('yatsi')" class="prayer-button transition-transform duration-100 bg-indigo-800 text-white text-xl sm:text-2xl font-bold py-6 sm:py-8 rounded-xl shadow-lg">Yatsı Namazı</button>
+            </div>
+        </div>
+        
+        <!-- Gebetsansicht -->
+        <div id="prayer-view" class="hidden w-full max-w-3xl text-center">
+            <h2 id="prayer-title" class="text-3xl sm:text-4xl font-bold text-teal-800 mb-2"></h2>
+            <p id="prayer-status" class="text-lg sm:text-xl font-medium text-gray-500 mb-4"></p>
+            <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg min-h-[400px] flex flex-col items-center justify-center">
+                <div id="icon-container" class="mb-4 h-20 w-20"></div>
+                <h3 id="prayer-part" class="text-xl sm:text-2xl font-semibold text-teal-700 mb-3"></h3>
+                <div id="prayer-text-turkish" class="text-xl text-gray-600"></div>
+            </div>
+            <div class="mt-6 flex flex-wrap justify-center gap-4">
+                 <button id="pause-resume-button" onclick="togglePause()" class="control-button transition-transform duration-100 bg-blue-500 hover:bg-blue-600 text-white text-lg sm:text-xl font-bold py-3 px-6 sm:py-4 sm:px-8 rounded-lg shadow-md w-full sm:w-auto flex-grow sm:flex-grow-0">Duraklat</button>
+                <button id="stop-button" onclick="stopPrayer()" class="control-button transition-transform duration-100 bg-red-600 hover:bg-red-700 text-white text-lg sm:text-xl font-bold py-3 px-6 sm:py-4 sm:px-8 rounded-lg shadow-md w-full sm:w-auto flex-grow sm:flex-grow-0">Durdur</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal & Loader -->
+    <div id="modal-overlay" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden z-50" onclick="closeModal()">
+        <div class="modal-content bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-8 transform scale-95" onclick="event.stopPropagation()">
+            <h3 id="modal-title" class="text-2xl font-bold text-teal-800 mb-4"></h3>
+            <div id="modal-loader" class="loader mx-auto hidden"></div>
+            <div id="modal-text" class="text-gray-700 text-lg max-h-[60vh] overflow-y-auto pr-2"></div>
+            <button id="modal-close-button" onclick="closeModal()" class="mt-6 w-full bg-teal-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-teal-700 transition-colors">Kapat</button>
+        </div>
+    </div>
+    <div id="voice-loader-overlay" class="loader-overlay fixed inset-0 bg-black bg-opacity-75 flex-col items-center justify-center p-4 hidden z-50">
+        <div class="loader"></div>
+        <p class="text-white text-xl mt-4">Sesler yükleniyor...</p>
+    </div>
+
+    <script>
+        // --- ICONS ---
+        const icons = {
+            qiyam: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1 1 0 0 1 1 1v8h2.586l-3.293 3.293a1 1 0 0 1-1.414-1.414L12 11.586V3a1 1 0 0 1 1-1Zm-2-2a3 3 0 1 1 6 0 3 3 0 0 1-6 0Zm-2 4a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1Zm-2 8a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H7a1 1 0 0 1-1-1Zm0 4a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H7a1 1 0 0 1-1-1Z"/></svg>`,
+            ruku: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M18 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM17.5 9a1.5 1.5 0 0 0-1.5-1.5H8a1.5 1.5 0 0 0-1.5 1.5v4.5a1.5 1.5 0 0 0 1.5 1.5H16a1.5 1.5 0 0 0 1.5-1.5V9Z"/></svg>`,
+            sujud: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M4 15a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Zm15-3a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm-3.5 1.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-2Z"/></svg>`,
+            dua: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2Zm3.536 7.464a.5.5 0 0 0-.708-.708L12 11.293l-2.828-2.829a.5.5 0 0 0-.708.708L11.293 12l-2.829 2.828a.5.5 0 0 0 .708.708L12 12.707l2.828 2.829a.5.5 0 0 0 .708-.708L12.707 12l2.829-2.828Z"/></svg>`
+        };
+        
+        // --- MEINE AUDIO-DATEIEN ---
+        const myAudioFiles = {
+            ezan_dinle: 'audio/ezan.mp3',
+            ezan_gebet: 'audio/ezan.mp3',
+            kamet: 'audio/kamet.mp3',
+            tekbir: 'audio/tekbir.mp3',
+            fatiha: 'audio/fatiha.mp3',
+            tahiyyat: 'audio/tahiyyat.mp3',
+            salli_barik: 'audio/salli_barik.mp3',
+            rabbena: 'audio/rabbena.mp3',
+            selam: 'audio/selam.mp3',
+            kunut: 'audio/kunut.mp3',
+            zammisure_kevser: 'audio/zammisure_kevser.mp3',
+            zammisure_ihlas: 'audio/zammisure_ihlas.mp3',
+            zammisure_felak: 'audio/zammisure_felak.mp3',
+            zammisure_nas: 'audio/zammisure_nas.mp3',
+            zammisure_fil: 'audio/zammisure_fil.mp3',
+            zammisure_kureys: 'audio/zammisure_kureys.mp3',
+            ruku: 'audio/ruku.mp3',
+            kalkis: 'audio/kalkis.mp3',
+            secde: 'audio/secde.mp3',
+            kalkis_rekat: 'audio/kalkis_rekat.mp3',
+            sabah_sunnet_niyet: 'audio/sabah_sunnet_niyet.mp3',
+            sabah_farz_niyet: 'audio/sabah_farz_niyet.mp3',
+            yatsi_vitir_niyet: 'audio/yatsi_vitir_niyet.mp3',
+            bitis: 'audio/bitis.mp3',
+        };
+
+        // --- GEBETSDATEN (nutzt die Pfade von oben) ---
+        const s = {
+            ezan: { name: "Ezan", turkish: "Gebetsruf wird abgespielt...", audio: "Ezan okunuyor", lang: 'tr-TR', icon: 'dua', audioFile: myAudioFiles.ezan_gebet },
+            kamet: { name: "Kamet", turkish: "Kamet wird gesprochen...", audio: "Kamet getiriliyor", lang: 'tr-TR', icon: 'dua', audioFile: myAudioFiles.kamet },
+            niyet: (text, key) => ({ name: "Niyet", turkish: `Niyet edin: ${text}`, audio: `Şimdi niyet edin. ${text}`, lang: 'tr-TR', icon: 'dua', audioFile: myAudioFiles[key] || null }),
+            tekbir: { name: "Tekbir", turkish: "Tekbir getirin.", audio: "Allahu Ekber", lang: 'ar-SA', icon: 'qiyam', audioFile: myAudioFiles.tekbir },
+            fatiha: { name: "Fatiha Suresi", turkish: "Euzu Besmele ve Fatiha Suresi.", audio: "Euzu billahi...", lang: 'ar-SA', icon: 'qiyam', audioFile: myAudioFiles.fatiha },
+            fatiha_only: { name: "Fatiha Suresi", turkish: "Besmele ve Fatiha suresini okuyun.", audio: "Bismillahirrahmanirrahim...", lang: 'ar-SA', icon: 'qiyam', audioFile: myAudioFiles.fatiha },
+            zamm_i_sure: (name, audio, key) => ({ name: `${name} Suresi`, turkish: `${name} Suresi.`, audio, lang: 'ar-SA', icon: 'qiyam', audioFile: myAudioFiles[`zammisure_${key}`] || null }),
+            kunut: { name: "Kunut Duaları", turkish: "Tekbir getirin ve Kunut dualarını okuyun.", audio: "Allahu Ekber. Allahümme inna nesteinüke...", lang: 'ar-SA', icon: 'dua', audioFile: myAudioFiles.kunut },
+            ruku: { name: "Rükû", turkish: "Rükû'ya gidin.", audio: "Allahu Ekber. Sübhane Rabbiyel Azim...", lang: 'ar-SA', icon: 'ruku', audioFile: myAudioFiles.ruku },
+            kalkis: { name: "Rükûdan Kalkış", turkish: "Doğrulun.", audio: "Semi'allahu limen hamideh...", lang: 'ar-SA', icon: 'qiyam', audioFile: myAudioFiles.kalkis },
+            secde: { name: "Secde", turkish: "Secde'ye gidin.", audio: "Allahu Ekber. Sübhane Rabbiyel A'la...", lang: 'ar-SA', icon: 'sujud', audioFile: myAudioFiles.secde },
+            ikinci_secde: { name: "İkinci Secde", turkish: "İkinci Secde'ye gidin.", audio: "Allahu Ekber. Sübhane Rabbiyel A'la...", lang: 'ar-SA', icon: 'sujud', audioFile: myAudioFiles.secde },
+            kalkis_rekat: (num) => ({ name: "Ayağa Kalkış", turkish: `${num}. rekat için ayağa kalkın.`, audio: `Allahu Ekber.`, lang: 'tr-TR', icon: 'qiyam', audioFile: myAudioFiles.kalkis_rekat }),
+            tahiyyat: { name: "Oturuş: Tahiyyat", turkish: "Ettehiyyatü'yü okuyun.", audio: "Ettehiyyatü lillahi...", lang: 'ar-SA', icon: 'dua', audioFile: myAudioFiles.tahiyyat },
+            salli_barik: { name: "Salli - Barik", turkish: "Salli ve Barik dualarını okuyun.", audio: "Allahümme salli...", lang: 'ar-SA', icon: 'dua', audioFile: myAudioFiles.salli_barik },
+            rabbena: { name: "Rabbena", turkish: "Rabbena dualarını okuyun.", audio: "Rabbena atina...", lang: 'ar-SA', icon: 'dua', audioFile: myAudioFiles.rabbena },
+            selam: { name: "Selam", turkish: "Selam verin.", audio: "Esselamü aleyküm ve rahmetullah. Esselamü aleyküm ve rahmetullah.", lang: 'ar-SA', icon: 'dua', audioFile: myAudioFiles.selam },
+            bitis: (namaz, key) => ({ name: "Namaz Bitti", turkish: `${namaz} namazı sona erdi.`, audio: `Allah kabul etsin...`, lang: 'tr-TR', icon: 'dua', audioFile: myAudioFiles[key] || null }),
+        };
+
+        const rekat1 = [s.tekbir, s.fatiha, s.zamm_i_sure("Kevser", "İnna ataynakel kevser...", 'kevser'), s.ruku, s.kalkis, s.secde, s.ikinci_secde];
+        const rekat2_otur = [s.kalkis_rekat(2), s.fatiha, s.zamm_i_sure("İhlas", "Kul hüvellahü ehad...", 'ihlas'), s.ruku, s.kalkis, s.secde, s.ikinci_secde, s.tahiyyat];
+        const rekat3 = [s.kalkis_rekat(3), s.fatiha, s.zamm_i_sure("Felak", "Kul e'ûzü birabbil-felak...", 'felak'), s.ruku, s.kalkis, s.secde, s.ikinci_secde];
+        const rekat4_son_sunnet = [s.kalkis_rekat(4), s.fatiha, s.zamm_i_sure("Nas", "Kul e'ûzü birabbin-nâs...", 'nas'), s.ruku, s.kalkis, s.secde, s.ikinci_secde, s.tahiyyat, s.rabbena, s.selam];
+        const rekat1_fard = [s.tekbir, s.fatiha, s.zamm_i_sure("Fil", "Elem tera keyfe...", 'fil'), s.ruku, s.kalkis, s.secde, s.ikinci_secde];
+        const rekat2_otur_fard = [s.kalkis_rekat(2), s.fatiha, s.zamm_i_sure("Kureyş", "Li'îlâfi Kureyş...", 'kureys'), s.ruku, s.kalkis, s.secde, s.ikinci_secde, s.tahiyyat];
+        const rekat3_fard = [s.kalkis_rekat(3), s.fatiha_only, s.ruku, s.kalkis, s.secde, s.ikinci_secde];
+        const rekat4_son_fard = [s.kalkis_rekat(4), s.fatiha_only, s.ruku, s.kalkis, s.secde, s.ikinci_secde, s.tahiyyat, s.salli_barik, s.selam];
+        
+        const adimlar_2_rekat_sunnet = [...rekat1, ...rekat2_otur.slice(1,-1), s.tahiyyat, s.rabbena, s.selam];
+        const adimlar_2_rekat_fard = [...rekat1_fard, ...rekat2_otur_fard.slice(1,-1), s.tahiyyat, s.salli_barik, s.selam];
+        const adimlar_4_rekat_sunnet = [...rekat1, ...rekat2_otur, ...rekat3, ...rekat4_son_sunnet];
+        const adimlar_ikindi_sunnet = [...rekat1, ...rekat2_otur, s.salli_barik, s.rabbena, s.kalkis_rekat(3), ...rekat3.slice(1), ...rekat4_son_sunnet];
+        const adimlar_4_rekat_fard = [...rekat1_fard, ...rekat2_otur_fard, ...rekat3_fard, ...rekat4_son_fard];
+        const adimlar_vitir = [...rekat1, ...rekat2_otur, s.kalkis_rekat(3), s.fatiha, s.zamm_i_sure("İhlas", "Kul hüvellahü ehad...", 'ihlas'), s.kunut, s.ruku, s.kalkis, s.secde, s.ikinci_secde, s.tahiyyat, s.salli_barik, s.rabbena, s.selam];
+
+        const prayerData = {
+            sabah: [ { type: "Ezan", steps: [s.ezan] }, { type: "Sünnet", rakat: 2, steps: [s.niyet("Sabah namazının iki rekat sünnetini kılmaya.", 'sabah_sunnet_niyet'), ...adimlar_2_rekat_sunnet] }, { type: "Kamet", steps: [s.kamet] }, { type: "Farz", rakat: 2, steps: [s.niyet("Sabah namazının iki rekat farzını kılmaya.", 'sabah_farz_niyet'), ...adimlar_2_rekat_fard] }, { type: "Bitiş", steps: [s.bitis("Sabah", 'sabah_bitis')]} ],
+            oeglen: [ { type: "Ezan", steps: [s.ezan] }, { type: "İlk Sünnet", rakat: 4, steps: [s.niyet("Öğle namazının dört rekat ilk sünnetini kılmaya.", 'oegle_ilksunnet_niyet'), ...adimlar_4_rekat_sunnet] }, { type: "Kamet", steps: [s.kamet] }, { type: "Farz", rakat: 4, steps: [s.niyet("Öğle namazının dört rekat farzını kılmaya.", 'oegle_farz_niyet'), ...adimlar_4_rekat_fard] }, { type: "Son Sünnet", rakat: 2, steps: [s.niyet("Öğle namazının iki rekat son sünnetini kılmaya.", 'oegle_sonsunnet_niyet'), ...adimlar_2_rekat_sunnet] }, { type: "Bitiş", steps: [s.bitis("Öğle", 'oegle_bitis')]} ],
+            ikindi: [ { type: "Ezan", steps: [s.ezan] }, { type: "Sünnet", rakat: 4, steps: [s.niyet("İkindi namazının dört rekat sünnetini kılmaya.", 'ikindi_sunnet_niyet'), ...adimlar_ikindi_sunnet] }, { type: "Kamet", steps: [s.kamet] }, { type: "Farz", rakat: 4, steps: [s.niyet("İkindi namazının dört rekat farzını kılmaya.", 'ikindi_farz_niyet'), ...adimlar_4_rekat_fard] }, { type: "Bitiş", steps: [s.bitis("İkindi", 'ikindi_bitis')]} ],
+            aksam: [ { type: "Ezan", steps: [s.ezan] }, { type: "Kamet", steps: [s.kamet] }, { type: "Farz", rakat: 3, steps: [s.niyet("Akşam namazının üç rekat farzını kılmaya.", 'aksam_farz_niyet'), ...rekat1_fard, ...rekat2_otur_fard, ...rekat3_fard, s.tahiyyat, s.salli_barik, s.selam] }, { type: "Sünnet", rakat: 2, steps: [s.niyet("Akşam namazının iki rekat sünnetini kılmaya.", 'aksam_sunnet_niyet'), ...adimlar_2_rekat_sunnet] }, { type: "Bitiş", steps: [s.bitis("Akşam", 'aksam_bitis')]} ],
+            yatsi: [ { type: "Ezan", steps: [s.ezan] }, { type: "İlk Sünnet", rakat: 4, steps: [s.niyet("Yatsı namazının dört rekat ilk sünnetini kılmaya.", 'yatsi_ilksunnet_niyet'), ...adimlar_ikindi_sunnet] }, { type: "Kamet", steps: [s.kamet] }, { type: "Farz", rakat: 4, steps: [s.niyet("Yatsı namazının dört rekat farzını kılmaya.", 'yatsi_farz_niyet'), ...adimlar_4_rekat_fard] }, { type: "Son Sünnet", rakat: 2, steps: [s.niyet("Yatsı namazının iki rekat son sünnetini kılmaya.", 'yatsi_sonsunnet_niyet'), ...adimlar_2_rekat_sunnet] }, { type: "Vitir Vacip", rakat: 3, steps: [s.niyet("Yatsı namazının üç rekat vitir namazını kılmaya.", 'yatsi_vitir_niyet'), ...adimlar_vitir] }, { type: "Bitiş", steps: [s.bitis("Yatsı", 'yatsi_bitis')]} ],
+        };
+        
+        // --- ANWENDUNGSSTEUERUNG ---
+        const ui = {
+            mainMenu: document.getElementById('main-menu'),
+            prayerView: document.getElementById('prayer-view'),
+            prayerTitle: document.getElementById('prayer-title'),
+            prayerStatus: document.getElementById('prayer-status'),
+            iconContainer: document.getElementById('icon-container'),
+            prayerPart: document.getElementById('prayer-part'),
+            prayerTextTurkish: document.getElementById('prayer-text-turkish'),
+            pauseResumeButton: document.getElementById('pause-resume-button'),
+            stopAdhanButton: document.getElementById('stop-adhan-button'),
+            modalOverlay: document.getElementById('modal-overlay'),
+            modalTitle: document.getElementById('modal-title'),
+            modalText: document.getElementById('modal-text'),
+            modalLoader: document.getElementById('modal-loader'),
+            voiceLoaderOverlay: document.getElementById('voice-loader-overlay'),
+        };
+        const audioPlayer = document.getElementById('prayer-audio-player');
+        const synth = window.speechSynthesis;
+        let state = { currentPrayer: null, prayerPartIndex: 0, stepIndex: 0, isPaused: false, voices: {} };
+        let timeoutId = null;
+        let audioContext = null;
+
+        async function unlockAudioContext() {
+            if (audioContext && audioContext.state === 'running') return;
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+            } catch (e) { console.error("AudioContext could not be created or resumed:", e); }
+        }
+
+        async function playAdhan() {
+            await unlockAudioContext();
+            const adhanFile = 'audio/ezan.mp3';
+            if (synth.speaking) synth.cancel();
+            if (state.currentPrayer) stopPrayer();
+            if (adhanFile) {
+                audioPlayer.src = adhanFile;
+                audioPlayer.play().catch(e => {
+                    if (e.name !== 'AbortError') {
+                        showModalMessage("Hata", "Ezan dosyası çalınamadı.");
+                    }
+                });
+                ui.stopAdhanButton.classList.remove('hidden');
+                audioPlayer.onended = () => ui.stopAdhanButton.classList.add('hidden');
+            } else {
+                showModalMessage("Bilgi", "Ezan ses dosyası bulunamadı.");
+            }
+        }
+        
+        function stopAdhan() {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+            ui.stopAdhanButton.classList.add('hidden');
+        }
+
+        function playCurrentStep() {
+            if (!state.currentPrayer || state.prayerPartIndex >= state.currentPrayer.length) {
+                stopPrayer();
+                return;
+            }
+            const prayerPart = state.currentPrayer[state.prayerPartIndex];
+            const step = prayerPart.steps[state.stepIndex];
+            if(!step) {
+                state.prayerPartIndex++;
+                state.stepIndex = 0;
+                playCurrentStep();
+                return;
+            }
+            ui.prayerStatus.textContent = `${prayerPart.type} - Adım ${state.stepIndex + 1}/${prayerPart.steps.length}`;
+            ui.prayerPart.innerHTML = step.name;
+            ui.prayerTextTurkish.innerHTML = step.turkish;
+            ui.iconContainer.innerHTML = icons[step.icon] || '';
+            
+            if (step.audioFile) {
+                audioPlayer.src = step.audioFile;
+                audioPlayer.play().catch(e => {
+                    if (e.name !== 'AbortError') {
+                        console.error("Audio file could not be played:", e);
+                        playTTS(step); 
+                    }
+                });
+            } else {
+                playTTS(step);
+            }
+        }
+
+        function playTTS(step) {
+            if (!step.audio) {
+                handleAudioEnd();
+                return;
+            }
+            const utterance = new SpeechSynthesisUtterance(step.audio);
+            if (step.lang === 'ar-SA' && state.voices.arabic) {
+                utterance.voice = state.voices.arabic;
+                utterance.lang = 'ar-SA';
+                utterance.rate = 0.8;
+            } else if (step.lang === 'tr-TR' && state.voices.turkish) {
+                utterance.voice = state.voices.turkish;
+                utterance.lang = 'tr-TR';
+                utterance.rate = 0.9;
+            } else {
+                handleAudioEnd();
+                return;
+            }
+            utterance.onend = handleAudioEnd;
+            synth.speak(utterance);
+        }
+        
+        audioPlayer.onended = handleAudioEnd;
+
+        function handleAudioEnd() {
+            if (state.isPaused) return;
+
+            const proceedToNextStep = () => {
+                if(state.currentPrayer === null) return;
+                const currentPart = state.currentPrayer[state.prayerPartIndex];
+                const isLastStep = state.stepIndex >= currentPart.steps.length - 1;
+                const isLastPart = state.prayerPartIndex >= state.currentPrayer.length - 1;
+
+                if (isLastStep && isLastPart) {
+                    stopPrayer();
+                } else if (isLastStep) {
+                     state.prayerPartIndex++;
+                     state.stepIndex = 0;
+                     playCurrentStep();
+                } else {
+                    state.stepIndex++;
+                    playCurrentStep();
+                }
+            };
+            
+            timeoutId = setTimeout(proceedToNextStep, 1500);
+        }
+
+        const getVoicesWhenReady = () => new Promise(resolve => {
+            const checkVoices = () => {
+                const voices = synth.getVoices();
+                if (voices.length) {
+                    resolve(voices);
+                } else {
+                    synth.onvoiceschanged = () => resolve(synth.getVoices());
+                    setTimeout(checkVoices, 100);
+                }
+            };
+            checkVoices();
+        });
+
+        async function setVoices() {
+            try {
+                const voices = await getVoicesWhenReady();
+                state.voices.arabic = voices.find(v => v.lang.startsWith('ar'));
+                state.voices.turkish = voices.find(v => v.lang.startsWith('tr'));
+            } catch (error) {
+                console.error(error);
+            }
+        }
+        
+        async function startPrayer(prayerKey) {
+            if (!prayerData[prayerKey]) return;
+            
+            stopAdhan();
+            await unlockAudioContext();
+
+            ui.voiceLoaderOverlay.style.display = 'flex';
+            await setVoices();
+            ui.voiceLoaderOverlay.style.display = 'none';
+
+            if (!state.voices.turkish || !state.voices.arabic) {
+                 showModalMessage("Bilgi", "Gerekli bilgisayar sesleri (Türkçe/Arapça) bulunamadı. Uygulama kendi MP3 dosyalarınızı kullanacaktır. Eksik kayıtlar sessiz kalacaktır.");
+            }
+            
+            state.currentPrayer = prayerData[prayerKey];
+            state.prayerPartIndex = 0;
+            state.stepIndex = 0;
+            state.isPaused = false;
+            ui.mainMenu.classList.add('hidden');
+            ui.prayerView.classList.remove('hidden');
+            ui.prayerTitle.textContent = `${prayerKey.charAt(0).toUpperCase() + prayerKey.slice(1)} Namazı`;
+            ui.pauseResumeButton.textContent = 'Duraklat';
+            playCurrentStep();
+        }
+
+        function stopPrayer() {
+            if (timeoutId) clearTimeout(timeoutId);
+            synth.cancel();
+            audioPlayer.src = "";
+            state.currentPrayer = null;
+            ui.prayerView.classList.add('hidden');
+            ui.mainMenu.classList.remove('hidden');
+        }
+        
+        function togglePause() {
+            if (state.isPaused) {
+                state.isPaused = false;
+                ui.pauseResumeButton.textContent = 'Duraklat';
+                if (audioPlayer.paused && audioPlayer.src) {
+                     audioPlayer.play().catch(e => {
+                        if (e.name !== 'AbortError') console.error(e)
+                    });
+                } else {
+                    synth.resume();
+                }
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    handleAudioEnd();
+                }
+            } else {
+                state.isPaused = true;
+                ui.pauseResumeButton.textContent = 'Devam Et';
+                if (!audioPlayer.paused) audioPlayer.pause();
+                if (synth.speaking) synth.pause();
+                if(timeoutId) clearTimeout(timeoutId);
+            }
+        }
+        
+        // --- MODAL FUNCTIONS ---
+        function openModal(title, showLoader = false) {
+            ui.modalTitle.textContent = title;
+            ui.modalText.innerHTML = '';
+            ui.modalLoader.style.display = showLoader ? 'block' : 'none';
+            ui.modalOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                ui.modalOverlay.style.opacity = '1';
+                ui.modalOverlay.querySelector('.modal-content').style.transform = 'scale(1)';
+            }, 10);
+        }
+
+        function closeModal() {
+            ui.modalOverlay.style.opacity = '0';
+            ui.modalOverlay.querySelector('.modal-content').style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                ui.modalOverlay.classList.add('hidden');
+            }, 250);
+        }
+
+        function showModalMessage(title, message) {
+            openModal(title);
+            ui.modalText.innerHTML = message;
+        }
+
+        function getExplanation() {
+            showModalMessage("Bilgi", "Bu özellik şu anda mevcut değil.");
+        }
+
+    </script>
+</body>
+</html>

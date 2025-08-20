@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Namaz Vakti Yardımcısı</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Disable double-tap zoom on mobile */
+        }
+        .prayer-button {
+            transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+        }
+        .prayer-button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen">
+
+    <div id="app-container" class="w-full max-w-md mx-auto p-4">
+
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="space-y-4">
+            <h1 class="text-4xl font-bold text-center text-teal-700 mb-6">Namaz Vakitleri</h1>
+            <button data-prayer="sabah" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Sabah</button>
+            <button data-prayer="ogle" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Öğle</button>
+            <button data-prayer="ikindi" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">İkindi</button>
+            <button data-prayer="aksam" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Akşam</button>
+            <button data-prayer="yatsi" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Yatsı</button>
+        </div>
+
+        <!-- Prayer Screen (Initially Hidden) -->
+        <div id="prayer-screen" class="hidden">
+            <h2 id="prayer-title" class="text-3xl font-bold text-center text-teal-700 mb-4"></h2>
+            <div class="bg-white p-8 rounded-2xl shadow-xl text-center min-h-[200px] flex items-center justify-center">
+                <p id="step-title" class="text-4xl font-semibold"></p>
+            </div>
+            <div class="mt-6 grid grid-cols-2 gap-4">
+                 <button id="prev-step" class="w-full bg-gray-300 text-gray-700 py-4 rounded-xl shadow-md text-xl font-bold">Geri</button>
+                 <button id="next-step" class="w-full bg-teal-600 text-white py-4 rounded-xl shadow-md text-xl font-bold">İleri</button>
+            </div>
+             <button id="main-menu-btn" class="w-full bg-red-500 text-white py-4 mt-4 rounded-xl shadow-md text-xl font-bold">Ana Menü</button>
+        </div>
+    </div>
+
+    <audio id="audio-player"></audio>
+
+    <script>
+        // --- 1. AUDIO DATEIEN: ZENTRALER ORT ---
+        // Ersetzen Sie hier die Pfade mit Ihren MP3-Dateien auf GitHub.
+        const audioFiles = {
+            // Gebetsruf für jede Gebetszeit
+            ezan: {
+                sabah: "audio/ezan_sabah.mp3",
+                ogle: "audio/ezan_ogle.mp3",
+                ikindi: "audio/ezan_ikindi.mp3",
+                aksam: "audio/ezan_aksam.mp3",
+                yatsi: "audio/ezan_yatsi.mp3",
+            },
+            // Gemeinsame Gebete, die in allen Gebeten vorkommen
+            shared: {
+                niyet: "audio/shared/niyet.mp3",
+                tekbir: "audio/shared/tekbir.mp3",
+                subhaneke: "audio/shared/subhaneke.mp3",
+                euzu_besmele: "audio/shared/euzu_besmele.mp3",
+                fatiha: "audio/shared/fatiha.mp3",
+                zammi_sure: "audio/shared/zammi_sure.mp3", // Beispiel für eine Sure
+                ruku: "audio/shared/ruku.mp3",
+                secde: "audio/shared/secde.mp3",
+                tahiyyat: "audio/shared/tahiyyat.mp3",
+                salli_barik: "audio/shared/salli_barik.mp3",
+                rabbena: "audio/shared/rabbena.mp3",
+                selam: "audio/shared/selam.mp3",
+                bitis: "audio/shared/bitis.mp3",
+            }
+        };
+
+        // --- 2. GEBETSABLAUF ---
+        // Hier wird der Ablauf jedes Gebets mithilfe der Schlüssel aus `audioFiles` definiert.
+        const prayerData = {
+            sabah: {
+                name: "Sabah Namazı",
+                steps: [
+                    { title: "Ezan", audioKey: "ezan" },
+                    { title: "Niyet", audioKey: "niyet" },
+                    { title: "Tekbir", audioKey: "tekbir" },
+                    { title: "Sübhaneke", audioKey: "subhaneke" },
+                    { title: "Eûzü Besmele", audioKey: "euzu_besmele" },
+                    { title: "Fatiha Suresi", audioKey: "fatiha" },
+                    { title: "Zammı Sure", audioKey: "zammi_sure" },
+                    { title: "Rüku", audioKey: "ruku" },
+                    { title: "Secde", audioKey: "secde" },
+                    { title: "Tahiyyat", audioKey: "tahiyyat" },
+                    { title: "Salli-Barik", audioKey: "salli_barik" },
+                    { title: "Rabbena", audioKey: "rabbena" },
+                    { title: "Selam", audioKey: "selam" },
+                    { title: "Namaz Bitti", audioKey: "bitis" }
+                ]
+            },
+            ogle: {
+                name: "Öğle Namazı",
+                steps: [
+                    { title: "Ezan", audioKey: "ezan" },
+                    { title: "Niyet", audioKey: "niyet" },
+                    { title: "Tekbir", audioKey: "tekbir" },
+                    { title: "Sübhaneke", audioKey: "subhaneke" },
+                    { title: "Fatiha Suresi", audioKey: "fatiha" },
+                    { title: "Zammı Sure", audioKey: "zammi_sure" },
+                    { title: "Rüku", audioKey: "ruku" },
+                    { title: "Secde", audioKey: "secde" },
+                    { title: "Tahiyyat", audioKey: "tahiyyat" },
+                    { title: "Salli-Barik", audioKey: "salli_barik" },
+                    { title: "Rabbena", audioKey: "rabbena" },
+                    { title: "Selam", audioKey: "selam" },
+                    { title: "Namaz Bitti", audioKey: "bitis" }
+                ]
+            },
+            ikindi: {
+                name: "İkindi Namazı",
+                steps: [
+                    { title: "Ezan", audioKey: "ezan" },
+                    { title: "Niyet", audioKey: "niyet" },
+                    { title: "Tekbir", audioKey: "tekbir" },
+                    { title: "Sübhaneke", audioKey: "subhaneke" },
+                    { title: "Fatiha Suresi", audioKey: "fatiha" },
+                    { title: "Zammı Sure", audioKey: "zammi_sure" },
+                    { title: "Rüku", audioKey: "ruku" },
+                    { title: "Secde", audioKey: "secde" },
+                    { title: "Tahiyyat", audioKey: "tahiyyat" },
+                    { title: "Salli-Barik", audioKey: "salli_barik" },
+                    { title: "Rabbena", audioKey: "rabbena" },
+                    { title: "Selam", audioKey: "selam" },
+                    { title: "Namaz Bitti", audioKey: "bitis" }
+                ]
+            },
+            aksam: {
+                name: "Akşam Namazı",
+                steps: [
+                    { title: "Ezan", audioKey: "ezan" },
+                    { title: "Niyet", audioKey: "niyet" },
+                    { title: "Tekbir", audioKey: "tekbir" },
+                    { title: "Sübhaneke", audioKey: "subhaneke" },
+                    { title: "Fatiha Suresi", audioKey: "fatiha" },
+                    { title: "Zammı Sure", audioKey: "zammi_sure" },
+                    { title: "Rüku", audioKey: "ruku" },
+                    { title: "Secde", audioKey: "secde" },
+                    { title: "Tahiyyat", audioKey: "tahiyyat" },
+                    { title: "Salli-Barik", audioKey: "salli_barik" },
+                    { title: "Rabbena", audioKey: "rabbena" },
+                    { title: "Selam", audioKey: "selam" },
+                    { title: "Namaz Bitti", audioKey: "bitis" }
+                ]
+            },
+            yatsi: {
+                name: "Yatsı Namazı",
+                steps: [
+                    { title: "Ezan", audioKey: "ezan" },
+                    { title: "Niyet", audioKey: "niyet" },
+                    { title: "Tekbir", audioKey: "tekbir" },
+                    { title: "Sübhaneke", audioKey: "subhaneke" },
+                    { title: "Fatiha Suresi", audioKey: "fatiha" },
+                    { title: "Zammı Sure", audioKey: "zammi_sure" },
+                    { title: "Rüku", audioKey: "ruku" },
+                    { title: "Secde", audioKey: "secde" },
+                    { title: "Tahiyyat", audioKey: "tahiyyat" },
+                    { title: "Salli-Barik", audioKey: "salli_barik" },
+                    { title: "Rabbena", audioKey: "rabbena" },
+                    { title: "Selam", audioKey: "selam" },
+                    { title: "Namaz Bitti", audioKey: "bitis" }
+                ]
+            }
+        };
+
+        // --- 3. APP LOGIK (Keine Änderungen hier nötig) ---
+        let currentPrayer = null;
+        let currentStepIndex = 0;
+
+        const mainMenu = document.getElementById('main-menu');
+        const prayerScreen = document.getElementById('prayer-screen');
+        const prayerTitle = document.getElementById('prayer-title');
+        const stepTitle = document.getElementById('step-title');
+        const audioPlayer = document.getElementById('audio-player');
+        const nextStepBtn = document.getElementById('next-step');
+        const prevStepBtn = document.getElementById('prev-step');
+        const mainMenuBtn = document.getElementById('main-menu-btn');
+
+        function getAudioPath(audioKey) {
+            if (audioKey === 'ezan') {
+                return audioFiles.ezan[currentPrayer];
+            }
+            return audioFiles.shared[audioKey];
+        }
+
+        function playAudio(src) {
+            if (!src) {
+                console.log("Keine Audiodatei für diesen Schritt vorhanden.");
+                return;
+            }
+            console.log(`Spiele Audio ab: ${src}`);
+            
+            // --- Diesen Block einkommentieren, wenn Sie Ihre MP3-Dateien haben ---
+            /*
+            try {
+                audioPlayer.src = src;
+                audioPlayer.play().catch(e => console.error("Audio-Wiedergabe fehlgeschlagen:", e));
+            } catch (error) {
+                console.error("Fehler beim Setzen der Audioquelle:", error);
+            }
+            */
+        }
+        
+        function updateStepUI() {
+            const prayer = prayerData[currentPrayer];
+            const step = prayer.steps[currentStepIndex];
+
+            prayerTitle.textContent = prayer.name;
+            stepTitle.textContent = step.title;
+            
+            const audioPath = getAudioPath(step.audioKey);
+            playAudio(audioPath);
+
+            prevStepBtn.disabled = currentStepIndex === 0;
+            prevStepBtn.classList.toggle('opacity-50', prevStepBtn.disabled);
+
+            if (currentStepIndex === prayer.steps.length - 1) {
+                nextStepBtn.textContent = "Bitir";
+            } else {
+                nextStepBtn.textContent = "İleri";
+            }
+        }
+
+        function startPrayer(prayerKey) {
+            currentPrayer = prayerKey;
+            currentStepIndex = 0;
+            mainMenu.classList.add('hidden');
+            prayerScreen.classList.remove('hidden');
+            updateStepUI();
+        }
+
+        function showMainMenu() {
+            prayerScreen.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+            currentPrayer = null;
+            currentStepIndex = 0;
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+        }
+
+        document.querySelectorAll('.prayer-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const prayerKey = button.dataset.prayer;
+                startPrayer(prayerKey);
+            });
+        });
+
+        nextStepBtn.addEventListener('click', () => {
+            const prayer = prayerData[currentPrayer];
+            if (currentStepIndex < prayer.steps.length - 1) {
+                currentStepIndex++;
+                updateStepUI();
+            } else {
+                showMainMenu();
+            }
+        });
+
+        prevStepBtn.addEventListener('click', () => {
+            if (currentStepIndex > 0) {
+                currentStepIndex--;
+                updateStepUI();
+            }
+        });
+
+        mainMenuBtn.addEventListener('click', showMainMenu);
+
+    </script>
+</body>
+</html>

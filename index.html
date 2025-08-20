@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Namaz Vakti Yardımcısı</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Disable double-tap zoom on mobile */
+        }
+        .prayer-button {
+            transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+        }
+        .prayer-button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen">
+
+    <div id="app-container" class="w-full max-w-md mx-auto p-4">
+
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="space-y-4">
+            <h1 class="text-4xl font-bold text-center text-teal-700 mb-6">Namaz Vakitleri</h1>
+            <button data-prayer="sabah" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Sabah</button>
+            <button data-prayer="ogle" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Öğle</button>
+            <button data-prayer="ikindi" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">İkindi</button>
+            <button data-prayer="aksam" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Akşam</button>
+            <button data-prayer="yatsi" class="prayer-button w-full bg-teal-500 text-white py-6 px-4 rounded-xl shadow-lg text-2xl font-bold">Yatsı</button>
+        </div>
+
+        <!-- Prayer Screen (Initially Hidden) -->
+        <div id="prayer-screen" class="hidden">
+            <h2 id="prayer-title" class="text-3xl font-bold text-center text-teal-700 mb-4"></h2>
+            <div class="bg-white p-8 rounded-2xl shadow-xl text-center min-h-[200px] flex items-center justify-center">
+                <p id="step-title" class="text-4xl font-semibold"></p>
+            </div>
+            <div class="mt-6 grid grid-cols-2 gap-4">
+                 <button id="prev-step" class="w-full bg-gray-300 text-gray-700 py-4 rounded-xl shadow-md text-xl font-bold">Geri</button>
+                 <button id="next-step" class="w-full bg-teal-600 text-white py-4 rounded-xl shadow-md text-xl font-bold">İleri</button>
+            </div>
+             <button id="main-menu-btn" class="w-full bg-red-500 text-white py-4 mt-4 rounded-xl shadow-md text-xl font-bold">Ana Menü</button>
+        </div>
+    </div>
+
+    <audio id="audio-player"></audio>
+
+    <script>
+        // --- DATA: PRAYER STEPS AND AUDIO FILES ---
+        // This is where you will replace the placeholder audio paths with your actual MP3 files.
+        // Example: 'audio/sabah/01_ezan.mp3'
+        const prayerData = {
+            sabah: {
+                name: "Sabah Namazı",
+                steps: [
+                    { title: "Ezan Okunuyor", audio: "audio/sabah/ezan.mp3" },
+                    { title: "Niyet Ediliyor", audio: "audio/sabah/niyet.mp3" },
+                    { title: "Tekbir Getiriliyor", audio: "audio/sabah/tekbir.mp3" },
+                    { title: "Sübhaneke Okunuyor", audio: "audio/sabah/subhaneke.mp3" },
+                    { title: "Fatiha Suresi", audio: "audio/sabah/fatiha.mp3" },
+                    { title: "Zammı Sure", audio: "audio/sabah/zammi_sure.mp3" },
+                    { title: "Rüku", audio: "audio/sabah/ruku.mp3" },
+                    { title: "Secde", audio: "audio/sabah/secde.mp3" },
+                    { title: "Tahiyyat", audio: "audio/sabah/tahiyyat.mp3" },
+                    { title: "Salli-Barik", audio: "audio/sabah/salli_barik.mp3" },
+                    { title: "Rabbena", audio: "audio/sabah/rabbena.mp3" },
+                    { title: "Selam", audio: "audio/sabah/selam.mp3" },
+                    { title: "Namaz Bitti", audio: "audio/shared/bitis.mp3" }
+                ]
+            },
+            ogle: {
+                name: "Öğle Namazı",
+                steps: [
+                    { title: "Ezan Okunuyor", audio: "audio/ogle/ezan.mp3" },
+                    // Add all other steps for Öğle prayer here
+                    { title: "Namaz Bitti", audio: "audio/shared/bitis.mp3" }
+                ]
+            },
+            ikindi: {
+                name: "İkindi Namazı",
+                steps: [
+                    { title: "Ezan Okunuyor", audio: "audio/ikindi/ezan.mp3" },
+                    // Add all other steps for İkindi prayer here
+                    { title: "Namaz Bitti", audio: "audio/shared/bitis.mp3" }
+                ]
+            },
+            aksam: {
+                name: "Akşam Namazı",
+                steps: [
+                    { title: "Ezan Okunuyor", audio: "audio/aksam/ezan.mp3" },
+                    // Add all other steps for Akşam prayer here
+                    { title: "Namaz Bitti", audio: "audio/shared/bitis.mp3" }
+                ]
+            },
+            yatsi: {
+                name: "Yatsı Namazı",
+                steps: [
+                    { title: "Ezan Okunuyor", audio: "audio/yatsi/ezan.mp3" },
+                    // Add all other steps for Yatsı prayer here
+                    { title: "Namaz Bitti", audio: "audio/shared/bitis.mp3" }
+                ]
+            }
+        };
+
+        // --- APPLICATION STATE ---
+        let currentPrayer = null;
+        let currentStepIndex = 0;
+
+        // --- DOM ELEMENTS ---
+        const mainMenu = document.getElementById('main-menu');
+        const prayerScreen = document.getElementById('prayer-screen');
+        const prayerTitle = document.getElementById('prayer-title');
+        const stepTitle = document.getElementById('step-title');
+        const audioPlayer = document.getElementById('audio-player');
+        const nextStepBtn = document.getElementById('next-step');
+        const prevStepBtn = document.getElementById('prev-step');
+        const mainMenuBtn = document.getElementById('main-menu-btn');
+
+        // --- FUNCTIONS ---
+
+        // Function to play audio.
+        // It sets the source and plays it. It also handles potential errors.
+        function playAudio(src) {
+            // For demonstration, we'll log to console instead of playing a file.
+            // When you have your MP3s, replace the console.log with the audioPlayer code.
+            console.log(`Playing audio: ${src}`);
+            
+            // --- UNCOMMENT THIS BLOCK WHEN YOU HAVE YOUR MP3 FILES ---
+            /*
+            try {
+                audioPlayer.src = src;
+                audioPlayer.play().catch(e => console.error("Audio play failed:", e));
+            } catch (error) {
+                console.error("Error setting audio source:", error);
+            }
+            */
+        }
+        
+        // Updates the UI to show the current prayer step
+        function updateStepUI() {
+            const prayer = prayerData[currentPrayer];
+            const step = prayer.steps[currentStepIndex];
+
+            prayerTitle.textContent = prayer.name;
+            stepTitle.textContent = step.title;
+            
+            playAudio(step.audio);
+
+            // Update button states
+            prevStepBtn.disabled = currentStepIndex === 0;
+            prevStepBtn.classList.toggle('opacity-50', prevStepBtn.disabled);
+
+            if (currentStepIndex === prayer.steps.length - 1) {
+                nextStepBtn.textContent = "Bitir"; // "Finish"
+            } else {
+                nextStepBtn.textContent = "İleri"; // "Next"
+            }
+        }
+
+        // Starts a selected prayer
+        function startPrayer(prayerKey) {
+            currentPrayer = prayerKey;
+            currentStepIndex = 0;
+            mainMenu.classList.add('hidden');
+            prayerScreen.classList.remove('hidden');
+            updateStepUI();
+        }
+
+        // Shows the main menu and resets the state
+        function showMainMenu() {
+            prayerScreen.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+            currentPrayer = null;
+            currentStepIndex = 0;
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+        }
+
+        // --- EVENT LISTENERS ---
+
+        // Listen for clicks on the main menu prayer buttons
+        document.querySelectorAll('.prayer-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const prayerKey = button.dataset.prayer;
+                startPrayer(prayerKey);
+            });
+        });
+
+        // Next step button
+        nextStepBtn.addEventListener('click', () => {
+            const prayer = prayerData[currentPrayer];
+            if (currentStepIndex < prayer.steps.length - 1) {
+                currentStepIndex++;
+                updateStepUI();
+            } else {
+                // If it's the last step, go back to the main menu
+                showMainMenu();
+            }
+        });
+
+        // Previous step button
+        prevStepBtn.addEventListener('click', () => {
+            if (currentStepIndex > 0) {
+                currentStepIndex--;
+                updateStepUI();
+            }
+        });
+
+        // Main menu button on prayer screen
+        mainMenuBtn.addEventListener('click', showMainMenu);
+
+    </script>
+</body>
+</html>
